@@ -13,7 +13,9 @@ std::string_view Substr(std::string_view view,
 
 std::vector<std::string_view> SplitBy(std::string_view view, char by);
 
-std::string_view GetFirstWord(std::string_view view);
+std::string_view GetFirstToken(std::string_view view);
+
+std::string_view GetLastToken(std::string_view view);
 
 std::vector<std::string_view> ParseStrings(std::string_view view);
 

@@ -36,9 +36,24 @@ std::vector<std::string_view> SplitBy(std::string_view view, char by) {
     return splits;
 }
 
-std::string_view GetFirstWord(std::string_view view) {
+std::string_view GetFirstToken(std::string_view view) {
     const size_t first_space = view.find_first_of(' ');
+    
+    if (first_space == std::string_view::npos) {
+        return view;
+    }
+
     return Substr(view, 0, first_space);
+}
+
+std::string_view GetLastToken(std::string_view view) {
+    const size_t last_space = view.find_last_of(' ');
+
+    if (last_space == std::string_view::npos) {
+        return view;
+    }
+
+    return Substr(view, last_space + 1, view.length());
 }
 
 std::vector<std::string_view> ParseStrings(std::string_view view) {

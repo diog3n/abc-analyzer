@@ -7,7 +7,18 @@
 
 namespace ABCAnalyzer {
 
-using CostCenters = std::unordered_map<std::string, double>;
+class CostCenter {
+public:
+    CostCenter(const std::string& name, double value);
+
+    const std::string& GetName() const;
+    double GetValue() const;
+
+    std::string ToString() const; 
+private:
+    std::string name;
+    double value;    
+};
 
 class Activity {
 public:
@@ -21,21 +32,16 @@ public:
 
     void AddCost(const std::string_view cost_center_name, double duration);
     void AddSubActivity(const Activity& activity); 
+    void AddSubActivity(const Activity *activity); 
+
+    std::string ToString(int level = 0) const;
 private:
     std::string name;
     std::unordered_map<std::string_view, double> costs;
     std::deque<const Activity *> sub_activities; 
 };
 
-// class CostCenter {
-// public:
-//     CostCenter(const std::string& name, double value);
-// 
-//     const std::string& GetName() const;
-// private:
-//     std::string name;
-//     double value;    
-// };
+using CostCenters = std::unordered_map<std::string_view, CostCenter *>; 
 
 double Calculate(const CostCenters& cost_centers, const Activity& activity);
 
