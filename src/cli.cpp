@@ -3,8 +3,10 @@
 #include "abc_entities.h"
 #include "view.h"
 #include <iostream>
+#include <memory>
 #include <ostream>
 #include <string_view>
+#include <unordered_set>
 
 namespace command_line {
 
@@ -48,7 +50,7 @@ void CommandLineInterface::Run(std::istream& in, std::ostream& out) {
             AddCostCenter(strings_views.at(0), value);
             continue;
         } else if (first_token == CLI_COMMAND_CALCULATE) {
-            CalculateAndPrint(out);
+            PrintCosts(out);
             continue;
         } else if (first_token == CLI_COMMAND_PRINT_ALL) {
             for (const ABCAnalyzer::CostCenter cost_center : cost_centers) {
@@ -69,24 +71,19 @@ void CommandLineInterface::Run(std::istream& in, std::ostream& out) {
 }
 
 void CommandLineInterface::AddActivity(std::string_view name) {
-    activities.emplace_back(std::string(name));
+    activities.emplace_back(std::string(name), &names_to_costcs_ptrs);
     names_to_act_ptrs[std::string_view(activities.back().GetName())] = &activities.back();   
 }
 
 void CommandLineInterface::AddSubActivity(std::string_view parent_name,
                                           std::string_view sub_name) {
-    const ABCAnalyzer::Activity *sub_ptr = names_to_act_ptrs.at(sub_name);
+    ABCAnalyzer::Activity *sub_ptr = names_to_act_ptrs.at(sub_name);
     names_to_act_ptrs.at(parent_name)->AddSubActivity(sub_ptr);
 }
 
 void CommandLineInterface::AddCost(std::string_view activity, 
                                    std::string_view cost_center, 
                                    double duration) {
-    DEBUG_PRINT_MESG("Adding cost");
-    DEBUG_PRINT_VAL(activity);
-    DEBUG_PRINT_VAL(cost_center);
-    DEBUG_PRINT_VAL(duration);
-
     const ABCAnalyzer::CostCenter *costc_ptr = names_to_costcs_ptrs.at(cost_center);
     ABCAnalyzer::Activity *activity_ptr = names_to_act_ptrs.at(activity);
     
@@ -142,6 +139,70 @@ double CommandLineInterface::CalculateAndPrintImpl(
     out << tab << "Total cost: " << result << std::endl;
 
     return result;
+}
+
+void CommandLineInterface::PrintCosts(std::ostream& out) {
+    BuildActivityTree();
+
+    if (!root_ptr->HasSubActivities()) {
+        out << "No activities were added" << std::endl;
+        return; 
+    }
+
+    for (const ABCAnalyzer::Activity *act_ptr : root_ptr->GetSubActivies()) {
+        if (act_ptr->HasSubActivities()) {
+            PrintCostsImpl(out, *act_ptr, 0);
+            continue;
+        }
+
+        out << "ACTIVITY: " << act_ptr->GetName() << std::endl
+            << "TOTAL COST: " << act_ptr->GetTotalCost() << std::endl;
+    }
+
+    out << "TOTAL ACTIVITY COST: " << root_ptr->GetTotalCost() << std::endl;
+}
+
+void CommandLineInterface::PrintCostsImpl(std::ostream& out, 
+                                          const ABCAnalyzer::Activity& activity, 
+                                          int level) {
+    std::string tab(level, '\t');
+
+    out << tab << "ACTIVITY: "   << activity.GetName() << std::endl
+        << tab << "TOTAL COST: " << activity.GetTotalCost() << std::endl;
+
+    if (activity.HasSubActivities()) {
+        for (const ABCAnalyzer::Activity *act_ptr : activity.GetSubActivies()) {
+            PrintCostsImpl(out, *act_ptr, level + 1);
+        }
+    } 
+}
+
+void CommandLineInterface::BuildActivityTree() {
+    std::unordered_set<const ABCAnalyzer::Activity *> visited;
+
+    root_ptr = std::make_shared<ABCAnalyzer::Activity>("root", &names_to_costcs_ptrs);
+
+    for (ABCAnalyzer::Activity& activity : activities) {
+        if (visited.count(&activity) > 0) {
+            continue;
+        };
+
+        BuildActivityTreeImpl(activity, visited);
+
+        root_ptr->AddSubActivity(activity);
+    }
+}
+
+void CommandLineInterface::BuildActivityTreeImpl(
+                   const ABCAnalyzer::Activity& activity,
+                   std::unordered_set<const ABCAnalyzer::Activity *>& visited) {
+    visited.insert(&activity);
+
+    if (activity.HasSubActivities()) {
+        for (const ABCAnalyzer::Activity *act_ptr : activity.GetSubActivies()) {
+            BuildActivityTreeImpl(*act_ptr, visited);
+        }
+    }
 }
 
 }

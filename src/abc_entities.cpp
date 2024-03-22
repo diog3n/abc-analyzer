@@ -1,12 +1,19 @@
 #include "abc_entities.h"
+#include "debug.h"
 #include <cassert>
+#include <cmath>
 #include <ostream>
 #include <sstream>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 
 namespace ABCAnalyzer {
 
-Activity::Activity(const std::string& name): name(name) {}
+Activity::Activity(const std::string& name, 
+                   const std::unordered_map<std::string_view, 
+                                      const CostCenter *> *cost_centers)
+                   : name(name), cost_centers(cost_centers) {}
 
 bool Activity::HasSubActivities() const {
     return !sub_activities.empty();
@@ -24,17 +31,47 @@ const std::deque<const Activity *>& Activity::GetSubActivies() const {
     return sub_activities; 
 }
 
-void Activity::AddCost(const std::string_view cost_center_name, double duration) {
-    assert(!HasSubActivities());
-    costs[cost_center_name] += duration;
+double Activity::GetTotalCost() const {
+    return total_cost;
 }
 
-void Activity::AddSubActivity(const Activity& activity) { 
+bool Activity::IsSubActivity() const {
+    return parent != nullptr;
+}
+
+void Activity::RecalculateTotalCost() {
+    double result = 0.0;
+    
+    if (!HasSubActivities()) {
+        for (const auto& [cost_center_name, duration] : costs) {
+            result += cost_centers->at(cost_center_name)->GetValue() * duration;
+        }
+    }
+
+    for (const Activity *sub_act : sub_activities) {
+        result += sub_act->GetTotalCost(); 
+    }
+
+    total_cost = result;
+    
+    if (IsSubActivity()) {
+        parent->RecalculateTotalCost();
+    }
+}
+
+void Activity::AddCost(const std::string_view cost_center_name, double duration) {
+    costs[cost_center_name] += duration;
+    RecalculateTotalCost();
+}
+
+void Activity::AddSubActivity(Activity& activity) { 
+    activity.parent = this; 
     sub_activities.push_back(&activity);
+    RecalculateTotalCost();
 } 
 
-void Activity::AddSubActivity(const Activity *activity) { 
-    sub_activities.push_back(activity);
+void Activity::AddSubActivity(Activity *activity) { 
+    AddSubActivity(*activity);
 } 
 
 std::string Activity::ToString(int level) const {
@@ -43,7 +80,7 @@ std::string Activity::ToString(int level) const {
     
     out << tab << "Activity name: " << name << std::endl;
     
-    out << tab << "Costs: " << name << std::endl;
+    out << tab << "Costs: " << std::endl;
     for (const auto& [cost_name, duration] : costs) {
         out << tab << cost_name << ", duration: " << duration << std::endl; 
     }
