@@ -22,6 +22,7 @@ private:
 
 class Activity {
 public:
+    Activity() = default;
     Activity(const std::string& name);
 
     bool HasSubActivities() const;

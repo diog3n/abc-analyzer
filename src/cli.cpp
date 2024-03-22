@@ -1,8 +1,9 @@
 #include "cli.h"
+#include "debug.h"
 #include "abc_entities.h"
 #include "view.h"
-#include <chrono>
 #include <iostream>
+#include <ostream>
 #include <string_view>
 
 namespace command_line {
@@ -47,6 +48,7 @@ void CommandLineInterface::Run(std::istream& in, std::ostream& out) {
             AddCostCenter(strings_views.at(0), value);
             continue;
         } else if (first_token == CLI_COMMAND_CALCULATE) {
+            CalculateAndPrint(out);
             continue;
         } else if (first_token == CLI_COMMAND_PRINT_ALL) {
             for (const ABCAnalyzer::CostCenter cost_center : cost_centers) {
@@ -80,6 +82,11 @@ void CommandLineInterface::AddSubActivity(std::string_view parent_name,
 void CommandLineInterface::AddCost(std::string_view activity, 
                                    std::string_view cost_center, 
                                    double duration) {
+    DEBUG_PRINT_MESG("Adding cost");
+    DEBUG_PRINT_VAL(activity);
+    DEBUG_PRINT_VAL(cost_center);
+    DEBUG_PRINT_VAL(duration);
+
     const ABCAnalyzer::CostCenter *costc_ptr = names_to_costcs_ptrs.at(cost_center);
     ABCAnalyzer::Activity *activity_ptr = names_to_act_ptrs.at(activity);
     
@@ -89,6 +96,52 @@ void CommandLineInterface::AddCost(std::string_view activity,
 void CommandLineInterface::AddCostCenter(std::string_view name, double value) {
     cost_centers.emplace_back(std::string(name), value);
     names_to_costcs_ptrs[std::string_view(cost_centers.back().GetName())] = &cost_centers.back();    
+}
+
+void CommandLineInterface::CalculateAndPrint(std::ostream& out) const {
+    double total_cost = 0.0;
+    std::unordered_set<const ABCAnalyzer::Activity *> visited;
+    
+    for (const ABCAnalyzer::Activity& activity : activities) {
+
+        if (visited.count(&activity) != 0) continue;
+
+        if (activity.HasSubActivities()) {
+            total_cost += CalculateAndPrintImpl(std::cout, activity, visited, 0);
+        } else {
+            out << "Activity: " << activity.GetName() << std::endl; 
+            double cost = ABCAnalyzer::Calculate(names_to_costcs_ptrs, activity);
+            total_cost += cost;
+            out << "Total cost: " << cost << std::endl;
+        }
+    }
+
+    out << "Total activity cost: " << total_cost << std::endl; 
+}
+
+double CommandLineInterface::CalculateAndPrintImpl(
+                        std::ostream& out,
+                        const ABCAnalyzer::Activity& activity, 
+                        std::unordered_set<const ABCAnalyzer::Activity *>& visited,
+                        int level) const {
+    double result = 0;
+    std::string tab(level * 2, ' ');
+    
+    out << tab << "Activity: " << activity.GetName() << std::endl; 
+
+    visited.insert(&activity);
+
+    if (activity.HasSubActivities()) {
+        for (const ABCAnalyzer::Activity *sub_activity : activity.GetSubActivies()) {
+            result += CalculateAndPrintImpl(out, *sub_activity, visited, level + 1);
+        }
+    } else {
+        result = ABCAnalyzer::Calculate(names_to_costcs_ptrs, activity);
+    }
+
+    out << tab << "Total cost: " << result << std::endl;
+
+    return result;
 }
 
 }
